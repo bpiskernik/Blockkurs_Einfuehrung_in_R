@@ -1,0 +1,117 @@
+---
+title: "Aufgaben"
+author: "Bernhard Piskernik"
+output: 
+      ioslides_presentation:
+        css: ./style.css
+        incremental: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set()
+library(tidyverse)
+library(nycflights13)
+```
+
+# Nicht abgeschlossene Übung
+
+## Aufgabe  {.build}
+
+Füge die Koordinaten des `origin` und der `destination` (`lat` und `lon` in `airports`) zu `flights` hinzu.
+
+
+```{r, eval=FALSE}
+flights_coord <- flights %>%
+  left_join(airports %>%
+              select(faa, lat, lon),
+            by=c("origin" = "faa")) %>%
+  left_join(airports %>%
+              select(faa, lat, lon),
+            by=c("dest" = "faa"))  %>%
+  #bonus regex rename
+  rename_all(
+    funs(
+      stringr::str_replace(., "(.*)\\.x$", "origin_\\1") %>%
+      stringr::str_replace(., "(.*)\\.y$", "dest_\\1")
+    )
+  )
+```
+
+# Hausübung 1
+
+## Aufgabe
+
+* Restrukturiere _\\data\\data_start.sav_, sodass sie  _\\data\\data_end.sav_ entspricht.
+
+* Tipp 1: SPSS Dateien können mit `haven` gelesen und geschrieben werden
+    + `dat_start <- haven::read_sav("data/data_start.sav")`
+    + `haven::write_sav(dat_end, "data/data_end.sav")`
+
+* Tipp 2: `gather()`, `spread()` und `separate()` werden benötigt
+
+## data_start.sav
+
+```{r}
+(dat_start <- haven::read_sav("data/data_start.sav"))
+```
+
+## data_end.sav
+
+```{r}
+(dat_end <- haven::read_sav("data/data_end.sav"))
+```
+
+## Lösung
+
+```{r}
+(dat_end_new <- dat_start %>%
+  gather(key, value, zei_fr1:cor_mo4) %>%
+  separate(key, c("var_type", "datetime")) %>%
+  spread(var_type, value) %>%
+  separate(datetime, c("day", "measurment"), sep=2))
+```
+
+
+# Hausübung 2
+
+## Aufgabe {.build}
+
+Berechne die durchschnittliche Temperatur je Monat am JFK Airport (nycflights13::airports) in °C
+
+**Lösung**
+
+```{r}
+aufgabe2 <- nycflights13::weather  %>%
+  ## beschränke auf JFK
+  filter(origin == "JFK") %>%
+  ## Fahrenheit zu Celsius
+  mutate(temp = (temp-32)/1.8) %>%
+  ## Berechne Mittelwert pro Monat
+  group_by(month) %>%
+  summarise(
+    mean_temp = mean(temp)
+  )
+
+```
+
+# Hausübung 3
+
+## Aufgabe {.build}
+
+Finde alle Flüge von JFK, bei denen die Windgeschwindigkeit beim Abflug größer als 20 km/h war
+
+**Lösung**
+
+```{r}
+windy_JFK <- flights %>%
+  ## kombiniere mit weather
+  left_join(weather) %>%
+  ## berechne km/h
+  mutate(wind_speed = wind_speed*1.60934) %>%
+  ## filter to JFK and windy
+  filter(
+    origin == "JFK",
+    wind_speed > 20
+  )
+```
+

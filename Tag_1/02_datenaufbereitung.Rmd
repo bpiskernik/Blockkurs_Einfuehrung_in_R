@@ -1,0 +1,934 @@
+---
+title: "Datenaufbereitung mit tidyverse"
+author: "Dr. Bernhard Piskernik"
+date: "22. Februar 2019"
+output: 
+      ioslides_presentation:
+        css: ./style.css
+        incremental: true
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(nycflights13)
+```
+
+## Was ist das tidyverse? {.build}
+
+* Das [tidyverse](http://tidyverse.org/){target="_blank"} ist der kollektive Name einer Sammlung von R Paketen.
+
+* Die Pakete teilen sich eine gemeinsame API und Design-Philosopie
+
+* Ziel ist ein **"Pit of Success"**.
+
+##  Teile des tidyverse
+
+broom, **dplyr**, forcats,
+**ggplot2**, haven, httr,
+hms, jsonlite, lubridate,
+magrittr, modelr, **purrr**,
+**readr**, readxl, stringr,
+**tibble**, rvest, **tidyr**,
+xml2
+
+* **fett** = core package 
+
+</br>
+
+Viele unabhängige Entwicklerpublizieren laufend neue _tidy_ R-Pakete.
+
+#Tidy Stil
+
+##Tidy Stil {.build}
+
+Tidyverse Code hat ein bestimmtes Aussehen:
+
+```{r, eval = FALSE}
+who %>%
+  gather(code, value, new_sp_m014:newrel_f65, na.rm = TRUE) %>% 
+  mutate(code = stringr::str_replace(code, "newrel", "new_rel")) %>%
+  separate(code, c("new", "var", "sexage")) %>% 
+  select(-new, -iso2, -iso3) %>% 
+  separate(sexage, c("sex", "age"), sep = 1)
+```
+
+Beispiel aus [R for Data Science](http://r4ds.had.co.nz/tidy-data.html#case-study)
+
+_NOTIZ: Viele weitere Beispiele dieser Einheit ebenfalls - Falls Sie nur ein R Buch lesen wollen, dann dieses!_
+
+
+## Styleguide I {.build}
+
+Jeder Schritt = eine Zeile:
+
+<span style="color:#1B5E20">Gut:</span>
+
+<div class = "good">
+```{r, eval = FALSE}
+mtcars %>% 
+  mutate(cyl = cyl * 2) %>%
+  mutate(mpg = mpg + 2)
+```
+</div>
+
+
+<span style="color:#B71C1C">Schlecht:</span>
+
+<div class = "bad">
+```{r, eval = FALSE}
+mtcars %>% mutate(cyl = cyl * 2) %>% mutate(mpg = mpg + 2)
+```
+</div>
+
+
+## Styleguide II {.build}
+
+Jede Zeile nach der ersten sollte eingeschoben sein:
+
+<span style="color:#1B5E20">Gut:</span>
+
+<div class = "good">
+```{r, eval = FALSE}
+mtcars2 <- mtcars %>%
+  mutate(cyl = cyl * 2) %>%
+  group_by(gear) %>%
+  summarise(avg_disp = mean(disp))
+```
+</div>
+
+
+<span style="color:#B71C1C">Schlecht:</span>
+
+<div class = "bad">
+```{r, eval = FALSE}
+mtcars2 <- mtcars %>% 
+mutate(cyl = cyl * 2) %>%
+group_by(gear) %>%
+summarise(avg_disp = mean(disp))
+```
+</div>
+
+## Styleguide III {.build}
+
+**Nutze weniger als 10 Pipes pro Pipeline**
+
+* Teile in Zwischenobjekte
+
+* Benutze sinnvolle Namen
+
+    + verzichte auf Name + Suffix
+    
+    + versuche Objekt zu beschreiben
+    
+# Pipe %>%
+
+## Pipe %>% {.build}
+
+* Original aus dem Paket `magrittr` wurde es für `tidyverse` übernommen.
+* `%>%` ist ein **Infix Operator**. D.h. er hat zwei Operanden, links und rechts.
+* `Pipe`t das **Ergebnis** des letzten Ausdrucks (links) forwärts als **erstes Argument** der nächsten Funktion (rechts).
+
+```{r, eval=FALSE}
+1 %>% I() == I(1)
+```
+
+* Argumentsposition in der Funktion rechts kann mit `.` gewählt werden:
+```{r, eval=FALSE}
+2 %>% rep(x = 1:5, .)
+```
+
+## Zwiebel vs Pipeline {.build}
+
+`h(g(f(x)))` wird zu `x %>% f %>% g %>% h`
+
+Bsp:
+Nimm die Nummer 10 &mdash; berechne ihren Logarithmus &mdash; simuliere eine Normalverteilung mit dem Ergebnis als Mittelwert und ziehe 100k Fälle  &mdash; berechne deren Mittelwert &mdash; berechne die Exponentialfunktion für das Ergebnis
+
+Klassischer R code:
+
+<div class="bad">
+```{r, eval=FALSE}
+exp(mean(rnorm(100000,log(10))))
+```
+</div>
+
+Pipeline:
+
+<div class="good">
+```{r, eval=FALSE}
+10 %>% 
+  log %>% 
+  rnorm(100000, .) %>% 
+  mean() %>% 
+  exp()
+```
+</div>
+
+## Pipes & tibbles
+
+`tibble`s (dataframes) sind das universelle Input- und Outputformat im tidyverse:
+
+```{r, eval = FALSE}
+iris_tbl <- iris %>% 
+  as_tibble() #in: dataframe, out: tibble
+
+iris_setosa <- iris_tbl %>% 
+  filter(Species == "setosa") #in: tibble, out: tibble
+
+head(iris_setosa) #in: tibble, out: tibble, side effect: print to console
+```
+
+Das Erzeugen funktioneller Ketten mit `%>%` ist einfach, weil man sich wenig Gedanken um den Outputtyp machen muss.
+
+## Was ist ein Tibble?
+
+
+Ein tibble ist das primäre "Datengefäß" im `tidyverse`. Er ist strenger als `data.frame`. 
+
+* Strings werden niemals implizit in Faktoren umgewandelt 
+* Konsistent bzgl. `[` und `[[`
+    - `tib[1]`, `tib[,1]` retournieren tibbles und `tib[[1]]` retourniert einen Vektor
+    - Dimensionen werden niemals "gedropt"
+* Aufruf gibt Zusammenfassung ähnlich zu `head()`
+* Warnt, wenn eine unbekannte Spalte indiziert wird
+* Zeigt Datentyp an
+
+
+## Verwendung mit Legacy Code
+
+konvertiere mit `as.data.frame()` in klassischen `data.frame`
+
+```{r}
+class(as.data.frame(tbl_df(iris)))
+```
+
+## Tücken der %>% {.build}
+
+`%>%` ist ein Operator und hat eine Wertikeit bzgl. der Verarbeitungsreihenfolge. 
+
+```{r}
+a <- c(TRUE,FALSE,NA)
+!is.na(a) %>% which()
+```
+
+Aufgrund der Operatorpräzedenz (see [R Operator Precedence](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Syntax.html){target="_blank"}) entspricht obiger Code:
+
+```{r, eval=FALSE}
+!which(is.na(a))
+```
+
+* `%>%` verursacht einen kleinen Verarbeitungsoverhead. Nicht ideal für row-wise Operationen. 
+* Code wird schwieriger tracebar bei Verwendung eines Debuggers.
+
+## Vorteile der %>% und des Tidy Stils
+
+* Funktionen fließen in natürlicher Folge und erzählen die Geschichte der Datenveränderung.
+
+* Effekte von Code sind leicht überprüfbar durch Einfügen von `View()`/`head()` in die Pipeline.
+
+* Einheitlicher Stil macht es einfacher den Code anderer (und eines selbst) zu verstehen.
+
+# Tidy Data
+
+## Tidy Data {.build}
+
+* Die Werkzeuge im tidyverse sind ausgerichtet um:
+
+    1. Data in Tidy Data zu tranformieren
+    
+    2. Tidy Data zu visualisieren, modellieren und analysieren
+    
+
+## Was is Tidy Data? {.build}
+
+[Hadley Wickham's 2014 JSS Paper](https://www.jstatsoft.org/article/view/v059i10){target="_blank"}
+
+* Jede Zeile entspricht einer Beobachtung
+* Jede Variable ist eine Spalte
+* Verschiedene Arten von Beobachtungen sind in eigenen Tabellen
+
+
+Konzept ist ähnlich zu SQL und anderen relationalen Datenbanken.
+
+
+
+## Daten Repräsentation I
+
+```{r, echo=FALSE}
+table1
+```
+
+## Daten RepräsentationII
+
+```{r, echo=FALSE}
+table2
+```
+
+## Daten Repräsentation III
+
+```{r, echo=FALSE}
+table1 %>%
+  gather(variable, value, cases:population) %>%
+  unite(temp, year, variable) %>%
+  spread(temp, value)
+```
+
+## Welche Repräsentation ist tidy?
+
+## Tidying Data
+* Das Paket zur Erstellung von tidy data ist `tidyr`. Seine Funktionen:
+    - `gather()` Spalten zu Zeilen zusammenfassen (stack, melt, unpivot)
+    - `spread()` Zeilen auf Spalten aufteilen (unstack, cast, pivot)
+    - `separate()` teile eine Spalte in mehrere
+    - `unite()` kombiniere mehrer Spalten zu einer
+    - `fill()` fülle und `drop_na()` entferne fehlende Werte
+    - und viele mehr
+    
+## Gathering 1v3 {.build}
+
+Problem: Spaltennamen sind nich Variablennamen, sondern Werte der Variable
+
+```{r, echo=FALSE}
+table4a
+```
+
+--> Die Spalten `1999` und `2000` repräsentieren Werte der Variable `year` und jede Zeile repräsentiert 2 Beoabachtungen, nicht eine.
+
+## Gathering 2v3
+<center>
+Um ein deratiges Datenset tidy zu machen müssen wir die Spalten in eine neue Variable **gather**n.
+
+aka
+
+Vom _wide_ Format ins _long_ Format umwandeln.
+</center>
+</br>
+
+**Usage**:
+`gather(data, key, value, ...)`
+
+* `data`
+* `key` Spalte mit Variblenwerte der ehem. Spaltennamen übernimmt
+* `value` Spalte mit den ursprünglichen Werten der Spalten
+* `...` Spezifikation, welche Spalten ge**gather**t werden sollen
+
+## Gathering 3v3 {.build}
+* `data` ist `tidyr::table4a`
+* Nennen wir `key`: `year`
+* Nennen wir `value`: `cases`
+* gather die Spalten `1999` und `2000`
+
+```{r}
+table4a %>%
+  gather(`1999`, `2000`, key = "year", value = "cases")
+```
+
+## Spreading 1v3 {.build}
+
+**Spread**ing ist das Gegenteil von **gather**ing.
+
+Nützlich, wenn eine Beobachtung über mehrere Zeilen verteilt ist.
+
+```{r, echo=FALSE}
+options(tibble.print_min = 6,
+        tibble.print_max = 6)
+table2
+options(tibble.print_min = 10,
+        tibble.print_max = 20)
+```
+
+Die Variable `count` ist eine Mischung aus `cases` und `population` --> 2 Zeilen = 1 Fall
+
+## Spreading 2v3 {.build}
+<center>
+Um ein deratiges Datenset tidy zu machen müssen wir die Spalte in mehrere Variablen **spread**en.
+
+aka
+
+Vom _long_ Format ins _wide_ Format umwandeln.
+</center>
+</br>
+
+**Usage**:
+`spread(data, key, value)`
+
+* `data`
+* `key` = Spalte, welche für Spaltennamen genutzt wird
+* `value` = Spalte, deren Werte zur Zellbesetzung dienen
+
+## Spreading 3v3  {.build}
+* `data` ist `tidyr::table2`
+* der `key` ist `type`
+* die `value`s sind in `count`
+
+```{r}
+table2 %>%
+  spread(key = type, value = count)
+```
+
+## Separating 1v2 
+
+`separate()` teilt eine Spalte in mehrere. Teilung erfolgt an Trennungszeichen.
+
+```{r, echo=FALSE}
+table3
+```
+
+Die Spalte `rate` beinhaltet `cases` und `population` und sollte in 2 Variablen gespalten werden.
+
+## Separating 2v2 {.build .smaller}
+
+`separate()`: das 1. Argument ist die zu teilende Spalte, das 2. die Namen der neuen Spalten
+
+```{r}
+table3 %>% 
+  separate(rate, into = c("cases", "population"))
+```
+
+Der default-Wert des Separators sind alle nicht-alphanumerischen Zeichen.
+
+Kann mit dem Argument `sep=` spezifiziert werden .
+
+## Unite 1v2
+
+`unite()` ist das Gegenteil von `separate()`
+
+```{r, echo=FALSE}
+table5 
+```
+
+Die Jahreszahl ist geteilt in `century` und `year`. Beides muss kombiniert werden.
+
+## Unite 2v2 {.build}
+
+`unite()`: das 1. Argument der Name der neuen Spalte, das 2. die Namen der zu kombinierenden Spalten
+
+```{r}
+table5 %>% 
+  unite(year, century, year, sep = "")
+```
+
+## Fehlende Werte {.build}
+
+Das Ändern der Datenrepräsentation verdeutlich Feinheiten fehlender Werte. Denn Werte können auf Arten fehlen:
+
+* **Explizit**, d.h. sie werden als `NA` angeführt.
+* **Implizit**, d.h. sie sind einfach nicht vorhanden.
+
+```{r echo=FALSE}
+stocks <- tibble(
+  year   = c(2015, 2015, 2015, 2015, 2016, 2016, 2016),
+  qtr    = c(   1,    2,    3,    4,    2,    3,    4),
+  return = c(1.88, 0.59, 0.35,   NA, 0.92, 0.17, 2.66)
+)
+
+stocks
+```
+
+## Implizit zu explizit I
+
+Implizit durch eine Transformation
+
+```{r}
+stocks %>% 
+  spread(year, return)
+```
+
+## Implizit zu explizit I
+
+
+Explizit mit Funktion `complete()`
+
+```{r}
+stocks %>% 
+  complete(year, qtr)
+```
+
+
+## Explizit zu implizit I
+
+Implizit als Argument in Funktionen
+
+```{r}
+stocks %>% 
+  spread(year, return) %>% 
+  gather(year, return, `2015`:`2016`, na.rm = TRUE)
+```
+
+## Explizit zu implizit II
+
+Explizit mit Funktion `drop_na()` (row-wise deletion)
+
+```{r}
+stocks %>% 
+  drop_na()
+```
+
+## Fill mit vorherigem Wert I
+
+Faule Leute (wie ich) wiederholen ein und den selben Wert nicht in _long_ Format Tabellen.
+
+```{r, echo=FALSE}
+treatment <- tribble(
+  ~ person,           ~ treatment, ~response,
+  "Derrick Whitmore", 1,           7,
+  NA,                 2,           10,
+  NA,                 3,           9,
+  "Katherine Burke",  1,           4
+)
+
+treatment
+```
+
+## Fill mit vorherigem Wert II
+
+Das ist kein Problem, dank der Funktion `fill()`.
+
+```{r}
+treatment %>% 
+  fill(person)
+```
+
+
+## Übung
+
+Tranformiere die Tabelle, sodass sie tidy ist. 
+
+```{r}
+preg <- tribble(
+  ~pregnant, ~male, ~female,
+  "yes",     NA,    10,
+  "no",      20,    12
+)
+```
+
+
+```{r}
+preg
+```
+
+## Lösung
+
+```{r}
+preg %>%
+  gather(sex, count, male:female)
+```
+
+#Data wrangling mit dplyr
+
+## dplyr
+
+* `dplyr` ist das Haupwerkzeug für Datenmanipulation im tidyverse.
+
+* Mittels Funktionen, **Verben**, können tibble in die benötigte Form gebracht werden.
+
+* Verfügt über Schnittstellen, sodass dplyr Code auch für Daten in SQL Datenbanken und auf big data Clustern funktioniert.
+
+    
+## Basisvokabular
+
+* `select()` wählt Spalten in einem tibble 
+* `filter()` wählt Zeilen, die Bedingung erfüllen
+* `arrange()` sortiert Zeilen
+* `mutate()` verändert einen tibble durch hinzufügen oder ändern von Spalten
+* `summarise()` aggregiert Daten entsprechend einer Gruppierung
+* `group_by()` wählt ein Variable zum Gruppieren
+
+## select() {.smaller}
+
+Hilft jene Variablen zu wählen, an denen man interessiert ist
+
+Wir erproben das am Datensatz `nycflights13::flights`
+
+```{r, echo=FALSE}
+flights
+```
+
+## Select mittels Name
+
+```{r}
+flights %>%
+  select(year, month, day)
+```
+
+## Select alle Spalten in einem Bereich 
+
+
+```{r}
+flights %>%
+  select(year:day)
+```
+
+
+## Select mittels Ausschluss {.smaller}
+
+```{r}
+flights %>%
+  select(-(dep_time:distance))
+```
+
+
+## select()'s Hilfsfunktionen
+
+* `starts_with("abc")`: Wählt alle Variablen deren Name mit "abc" beginnt
+
+* `ends_with("xyz")`: Wählt alle Variablen deren Name mit "xyz" endet
+
+* `contains("ijk")`: Wählt alle Variablen deren Name mit "ijk" an beliebiger Stelle.
+
+* `matches("(.)\\1")`: Wählt alle Variablen deren Name mit einer _regular expression_ beschrieben werden. (Diese beschreibt Wörter mit Zeichenwiederholung). 
+
+* `num_range("x", 1:3)`: wählt x1, x2 und x3
+
+* `one_of(chr_vektor)`: wählt in `chr_vwektor` enthaltene Namen
+
+## filter()
+
+Beschränkt Daten auf Subset, das logische Bedingung erfüllt.
+
+* Argument muss logischen Vektor entsprechen
+
+* Im Falle mehrerer Elemente werden sie mit **&** verknüpft 
+
+
+## Filter Flüge an meinem Geburtstag
+
+```{r, warning=FALSE}
+flights %>%
+  filter(
+    month == 10,
+    day == 28
+  )
+```
+
+## arrange()
+
+`arrange()` verändert die Zeilenreihenfolge 
+
+* Argumente sind Spaltennamen (aber auch Funktionen) nach denen gereiht werden soll 
+
+* Im Falle mehr als einer Spalte, brechen nachfolgende Spalten "ties" in früheren Spalten
+
+
+## arrange()
+
+```{r}
+flights %>%
+  sample_n(5) %>%
+  arrange(year, month, day) 
+```
+
+## arrange() in absteigender Reihenfolge mit desc()
+
+```{r}
+flights %>%
+  sample_n(5) %>%
+  arrange(desc(arr_time))
+```
+
+## mutate()
+
+`mutate()` erzeugt neue Spalten als Funktion bestehender Spalten
+
+Wenn man nur die neuen Variablen will, dann empfiehlt sich `transmute()`
+
+Nützliche Funktionen:
+
+* Arithmetische Operatoren: `+`, `-`, `*`, `/`, `^`
+* Modulare Arithmetik: `%/%` (Integerdivision) und `%%` (Rest)
+* Logs: `log()`, `log2()`, `log10()`
+* Offsets: `lead()` und `lag()` beziehen sich auf vorangegangene und folgende Werte. z.B. `x - lag(x)`
+* Kumulative und rollende Aggregate: `cumsum()`, `cumprod()`, `cummin()`, `cummax()`, `cummean()`
+* Logische Vergleiche: `<`, `<=`, `>`, `>=`, `!=`
+
+## mutate()
+
+```{r}
+flights %>%
+  mutate(
+    gain = arr_delay - dep_delay,
+    speed = distance / air_time * 60
+  ) %>%
+  select (gain, speed)
+```
+
+## Bedingtes mutate
+
+
+Optionen: `if_else()`, `recode()`, and `case_when()`
+
+```{r, eval=F}
+airquality %>%
+    mutate(Temp = if_else(Temp > 90, true = NA_integer_, false = Temp))
+
+iris %>%
+    mutate(Species = recode(Species, setosa = "S", versicolor = "V")) %>%
+    group_by(Species) %>%
+    slice(1)
+
+mpg %>%
+    mutate(class = case_when(class == "pickup" ~ "ute",
+                             class == "suv" ~ "sport-ute"
+                             TRUE ~ "not a ute"))  
+
+```
+
+## Mutate für mehrere Variablen
+
+* `mutate_all()` Führt Funktion für alle Variablen durch
+
+* `mutate_if()` Führt Funktion für alle Variablen mit bestimmten Typ durch
+
+* `mutate_at()` Führt Funktion für alle gewählten Variablen aus
+
+## mutate_if()
+
+```{r}
+iris %>%
+  mutate_if(is.double, 
+            measurements::conv_unit,
+            "cm", "inch")
+```
+
+## mutate_at()
+
+```{r}
+iris %>%
+  mutate_at(vars(starts_with("Sepal")),
+            function(x) x*0.393701)
+```
+
+## summarise() {.build}
+
+`summarise()` aggregiert tibble zu einer einzigen Zeile.
+
+Nützliche summary Funktionen:
+
+* Häufigkeiten: `n()`, `sum(!is.na(x))`, `n_distinct(x)`
+* Lagemaße: `mean(x)` and `median(x)`
+* Streuungsmaße: `sd(x)`, `IQR(x)`, `mad(x)`
+* Rangmaße: `min(x)`, `quantile(x, 0.25)`, `max(x)`
+* Positionsmaße: `first(x)`, `nth(x, 2)`, `last(x)`
+
+
+Aggregation mehrerer Variablen mit `summarise_all()`, `summarize_if()`, und `summarize_at()` (siehe `mutate`).
+
+## summarise()
+
+```{r}
+flights %>%
+  transmute(
+    gain = arr_delay - dep_delay,
+    speed = distance / air_time * 60
+  ) %>% 
+  summarize_all(
+    mean, na.rm=T
+  )
+```
+
+## group_by()
+
+`group_by()` fächert die Evaluationsblöcke für `summarise`, `mutate` und `filter` in Gruppen auf
+
+```{r eval=FALSE}
+flights %>%
+  ### <b>
+  group_by(month) %>%
+  ### </b>
+  transmute(
+    gain = arr_delay - dep_delay,
+    speed = distance / air_time * 60
+  ) %>% 
+  summarize_all(
+    mean, na.rm=T
+  )
+```
+
+## group_by()
+
+```{r, echo = FALSE}
+flights %>%
+  group_by(month) %>%
+  transmute(
+    gain = arr_delay - dep_delay,
+    speed = distance / air_time * 60
+  ) %>% 
+  summarize_all(
+    mean, na.rm=T
+  )
+```
+
+## Group mit mehr als einer Variable I
+
+Bei Gruppierungen mit multiplen Variablen, reduziert jedes `summarise` eine Gruppierungsebene. Dadurch kann das Datenset progessiv "aufgerollt" werden:
+
+```{r}
+daily <- group_by(flights, year, month, day)
+(per_day   <- summarise(daily, flights = n()))
+```
+
+##Grouping by multiple variables II
+
+```{r}
+(per_month <- summarise(per_day, flights = sum(flights)))
+```
+
+##Grouping by multiple variables III
+
+```{r}
+(per_year  <- summarise(per_month, flights = sum(flights)))
+```
+
+## Ungrouping
+
+Gruppierungen können mit `ungroup()` entfernt werden.
+
+```{r}
+daily %>% 
+  ungroup() %>%             # no longer grouped by date
+  summarise(flights = n())  # all flights
+```
+
+#Joins
+
+## Mutating joins
+
+* Ein mutating join kombiniert Variablen zweier Datensets. 
+* Beobachtungen werden mittels _keys_ gematcht und die zusätzlichen Variablen kopiert.
+* Arten:
+    + `inner_join` behält Beochtunge die in beiden Sets gematcht werden können
+    + `left_join` behält alle Beobachtungen des ersten Datensets
+    + `right_join` behält alle Beobachtungen des zweiten Datensets
+    + `full_join` behält alle Beobachtungen
+    
+* Doppelte keys: alle möglichen Kombination
+
+
+## Definiere die key-Variablen
+
+**natural join** nutzt alle Variablen, die in beiden Sets vorkommen
+
+```{r}
+flights %>% 
+  left_join(weather)
+```
+
+## Definiere die key-Variablen
+
+Wähle eine _key_-Variable
+
+```{r}
+flights %>% 
+  left_join(planes, by = "tailnum")
+```
+
+## Definiere die key-Variablen
+
+Wähle mehrere _key_-Variablen mit einen benannten chr-Vektor: `by = c("a1" = "b1", "a2" = "b2")`
+
+```{r}
+flights %>% 
+  left_join(airports, c("dest" = "faa"))
+```
+
+##Filtering joins
+
+* Beobachtungsmatching wie bei Mutating-Joins
+* betrifft nur Beobachtungen, nicht Variablen
+* 2 Arten:
+    + `semi_join(x, y)` behält alle Beobachtungen in `x` mit Match in `y`
+    + `anti_join(x, y)` entfernt alle Beobachtungen aus `x` mit Match in `y`
+
+
+## Übungen
+
+1. Finde all Flüge, welche mehr als 2 Stunden zu spät sind (siehe Variable `arr_delay`)
+2. `dep_time` und `sched_dep_time` sind gut zu lesen (hhmm), aber ungünstig für Berechnungen. Transformiere sie in die Anzahl vergangener Minuten seit Mitternacht
+3. Berechne den Anteil der gecancelten Flüge pro Tag
+4. Füge die Koordinaten des `origin` und der `destination` (`lat` und `lon` in `airports`) zu `flights` hinzu.
+
+
+
+
+## Übung {.build}
+
+Finde all Flüge, welche mehr als 2 Stunden zu spät sind (siehe Variable `arr_delay`)
+
+```{r}
+(flights_late <- flights %>%
+   filter(arr_delay >= 120))
+
+```
+
+## Übung {.build}
+
+`dep_time` und `sched_dep_time` sind gut zu lesen (hhmm), aber ungünstig für Berechnungen. Transformiere sie in die Anzahl vergangener Minuten seit Mitternacht.
+
+```{r}
+flights %>%
+  mutate_at(vars(dep_time, sched_dep_time), 
+            function(x) x %/% 100 * 60 + x %% 100)
+```
+
+## Übung {.build}
+
+Berechne den Anteil der gecancelten Flüge pro Tag
+
+```{r}
+(cancelled_delayed <- flights %>%
+  mutate(cancelled = is.na(air_time)) %>%
+  group_by(year, month, day) %>%
+  summarise(prop_cancelled = mean(cancelled)))
+
+```
+
+## Übung  {.build}
+
+Füge die Koordinaten des `origin` und der `destination` (`lat` und `lon` in `airports`) zu `flights` hinzu.
+
+```{r, eval=FALSE}
+flights_coord <- flights %>%
+  left_join(airports %>%
+              select(faa, lat, lon),
+            by=c("origin" = "faa")) %>%
+  left_join(airports %>%
+              select(faa, lat, lon),
+            by=c("dest" = "faa"))  %>%
+  #bonus regex rename
+  rename_all(
+    funs(
+      stringr::str_replace(., "(.*)\\.x$", "origin_\\1") %>%
+      stringr::str_replace(., "(.*)\\.y$", "dest_\\1")
+    )
+  )
+```
+
+## Hausübung 1
+
+* Restrukturiere _\\data\\data_start.sav_, sodass sie  _\\data\\data_end.sav_ entspricht.
+
+* Tipp 1: SPSS Dateien können mit `haven` gelesen und geschrieben werden
+    + `dat_start <- haven::read_sav("data/data_start.sav")`
+    + `haven::write_sav(dat_end, "data/data_end.sav")`
+
+* Tipp 2: `gather()`, `spread()` und `separate()` werden benötigt
+
+## Hausübung 2
+
+Berechne die durchschnittliche Temperatur je Monat am JFK Airport (nycflights13::airports) in °C
+
+## Hausübung 3
+
+Finde alle Flüge von JFK, bei denen die Windgeschwindigkeit beim Abflug größer als 20 km/h war
+
+Tipp: auch Datensets können eine Hilfeseite haben
+
+## Hausübung allgemein:
+
+Zusätzlich zum Code bitte Beschreibung des Lösungswegs in eigenen Worten.
+
+Sende Lösung als HTML-Dokument an bernhard.piskernik@univie.ac.at!
+
+Deadline: 22. März 2019
+
+# Herzlichen Dank für Ihre Aufmerksamkeit

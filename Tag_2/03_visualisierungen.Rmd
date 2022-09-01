@@ -1,0 +1,744 @@
+---
+title: "Visualisierungen"
+author: "Bernhard Piskernik"
+date: "28 März 2019"
+output: 
+      ioslides_presentation:
+        css: ./style.css
+        incremental: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.width=8, fig.height=3)
+
+library(tidyverse)
+library(nycflights13)
+
+```
+
+## ggplot2 {.build}
+
+[ggplot2](https://ggplot2.tidyverse.org/) ist das Grafikpaket im *tidyverse*
+
+Es basiert auf [The Grammar of Graphics](https://www.amazon.de/Grammar-Graphics-Statistics-Computing/dp/0387245448/ref=sr_1_1?ie=UTF8&qid=1551865404&sr=8-1&keywords=The+Grammar+of+Graphics)
+
+Einheitliches System zum Beschreiben und Erstellen von Grafiken
+
+Vorteile:
+
++ schneller (einfacher Transfer von gelernten Techniken)
+
++ schöner (_Pit of Success_)
+
+```{r}
+library(tidyverse)
+```
+
+
+## ggplot Grafiken bestehen aus mehreren Layern
+
+
+```{r}
+nycflights13::weather %>%
+  ggplot(aes(x=hour, y=temp))
+  
+```
+
+
+## ggplot Grafiken bestehen aus mehreren Layern
+
+
+```{r, warning=FALSE, message=FALSE}
+nycflights13::weather %>%
+  ggplot(aes(x=hour, y=temp)) +
+    ### <b>
+    geom_hex(bins = 12)
+    ### </b>
+```
+
+
+## ggplot Grafiken bestehen aus mehreren Layern
+
+
+```{r, warning=FALSE, message=FALSE}
+nycflights13::weather %>%
+  ggplot(aes(x=hour, y=temp)) +
+    geom_hex(bins = 12)+
+    ### <b>
+    geom_smooth(color="red")
+    ### </b>
+  
+```
+
+## Grammatik - Elemente {.build .smaller}
+
+**geom**: die geometrische Form/Figur um Daten darzustellen
+
++ bar, point, line, violine, ribbon, text, hex, ...
+
+**aesthetic**: Attribute um _geom_ zu kontrollieren (mapping)
+
++ x,y-Position, Farbe, Füllung, Größe, Form, ...
+
+**stat**: Transformationen der Daten bevor sie in _geom_ gepackt werden
+
++ binning, count, ...
+
+**scale**: Umwandlung von Daten in Grafikattribute
+
++ Link zwischen _aesthetic_ und Daten
+
+**guide**: Helfen _aesthetic_ in Daten umzuwandeln
+
++ Legenden, Achsen
+
+## Basis Syntax 
+
+<code>
+
+ggplot(<span class="must">Daten</span>, 
+	
+&nbsp;&nbsp;&nbsp;&nbsp;aes(<span class="can">mappings</span>) +
+	
+&nbsp;&nbsp;&nbsp;&nbsp;geom_...(<span class="can">aes(weitere mappings)</span>),
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="might">nicht variable abhängige Anpassungen</span>) +
+
+&nbsp;&nbsp;&nbsp;&nbsp;scale_...(<span class="might">Anpassungen der Skala</span>) +
+
+&nbsp;&nbsp;&nbsp;&nbsp;facet_...(<span class="can">Aufsplitten der Grafik in Facetten</span> ) +
+
+&nbsp;&nbsp;&nbsp;&nbsp;theme...(<span class="might">Allgemeine Anpassungen</span>)
+</code>
+
+## Regeln für Daten {.build}
+
+Benutze `tibble`
+
+Benutze `factor`
+
+Beherrsche `factor`
+
+Halte deine Daten **tidy**
+
+Bringe Daten in **richtige Form**
+
+Wenn eine ggplot Grafik nicht funktioniert, 
+
+&nbsp;&nbsp; dann frage dich: _Halte ich mich an die Regeln?_
+
+## Faktoren Beispiel
+
+Erstelle Daten
+
+```{r}
+month_temp <- tibble::tribble(
+       ~month, ~mean_temp,
+    "January",        1.9,
+   "February",        1.2,
+      "March",        4.2,
+      "April",       10.1,
+        "May",       15.2,
+       "June",       21.1,
+       "July",         26,
+     "August",       23.2,
+  "September",       19.4,
+    "October",       15.4,
+   "November",        7.3,
+   "December",        3.7
+  )
+```
+
+## Faktoren Beispiel
+
+Blick auf Daten
+
+```{r}
+month_temp 
+```
+
+## Faktoren Beispiel
+
+Probiere zu ploten
+
+```{r}
+month_temp %>%
+  ggplot(aes(x=month, y=mean_temp)) +
+    geom_bar(stat="identity")
+```
+
+## Faktoren Beispiel {.smaller}
+
+Konvertiere in Faktor
+
+```{r, warning=FALSE}
+month_temp %>%
+      ### <b>
+  mutate(month = factor(month)) %>%
+      ### </b>
+  ggplot(aes(x=month, y=mean_temp)) +
+    geom_bar(stat="identity")
+```
+
+Notiz: `forcats::as_factor()` statt `factor()` würde funkionieren, da nach Reihenfolge
+
+## Faktoren Beispiel { .build}
+
+Das Paket `forcats` (in tidyverse enthalten) bietet viele Tools um Reihenfolge eines Faktors zu ändern.
+
+Das allgemeinste ist `fct_relevel()`
+
+```{r}
+month_temp_relev <- month_temp %>%
+  mutate(
+    month = fct_relevel( month,
+        "January", "February",  "March", "April",
+        "May", "June", "July", "August",
+        "September", "October", "November", "December")
+  )
+```
+
+## Faktoren Beispiel
+
+Probiere zu ploten
+
+```{r}
+month_temp_relev %>%
+  ggplot(aes(x=month, y=mean_temp)) +
+    geom_bar(stat="identity")
+```
+
+## Faktoren Beispiel
+
+Sortierung nach *mean_temp* mit `forcats::fct_reorder()`
+
+```{r}
+month_temp_relev %>%
+  mutate(
+        ### <b>
+    month = fct_reorder(month, mean_temp, .fun=mean)
+        ### </b>
+  ) %>%
+  ggplot(aes(x=month, y=mean_temp)) +
+    geom_bar(stat="identity")
+```
+
+# geom
+
+## Kleine Auswahl an `geom`s {.smaller}
+
+geom | benötigt | optional
+--- | --- | ---
+geom_bar() | x: Variable für x-Achse | y, color, size, fill, linetype, alpha (Transparenz)
+geom_point() | x, y | shape, colour, size, fill, alpha
+geom_line()  | x, y | colour, size, linetype, alpha
+geom_smooth() | x, y | colour, size, fill, linetype, alpha
+geom_histogram() | x, y | colour, size, fill, linetype, alpha
+geom_boxplot() | x | colour, size, fill, alpha
+geom_errorbar() | x, ymin, ymax | colour, size, linetype, width, alpha
+
+Für mehr siehe [offizielle Referenz](https://ggplot2.tidyverse.org/reference/)
+
+## geom_bar()
+
+benötigt, kein y, sondern berechnet Anzahl per default
+
+```{r}
+flights %>%
+  ggplot(aes(x=origin, fill=origin)) +
+    geom_bar()
+```
+
+## geom_point()
+
+```{r}
+weather %>%
+  sample_n(500) %>%
+  ggplot(aes(x=temp, y=humid, shape=origin, color=origin)) +
+    geom_point(size=3, alpha=0.5)
+```
+
+## geom_line()
+
+```{r}
+weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin, color=origin)) +
+    geom_line()
+```
+
+## geom_smooth()
+
+```{r, warning=FALSE}
+weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin, color=origin)) +
+    geom_smooth()
+```
+
+## geom_histogram()
+
+```{r, warning=FALSE}
+weather %>%
+  ggplot(aes(x=temp)) +
+    geom_histogram()
+```
+
+## geom_boxplot()
+
+```{r, warning=FALSE}
+weather %>%
+  ggplot(aes(x=origin, y=humid)) +
+    geom_boxplot()
+```
+
+## geom_errorbar() {.smaller}
+
+```{r}
+weather %>%
+  sample_n(100) %>%
+  group_by(month) %>%
+  summarize(
+    mean_temp = mean(temp, na.rm = T),
+    se_temp = plotrix::std.error(temp)
+  ) %>%
+  ggplot(aes(x=month, y = mean_temp)) +
+    geom_bar(stat = "identity") +
+  ### <b>
+    geom_errorbar(aes(ymin = mean_temp-2*se_temp, ymax=mean_temp+2*se_temp), width=0.5)
+  ### </b>
+```
+
+
+## Übung
+
+Erstelle folgende Grafik mit `weather %>% filter(origin=="JFK")` und den geoms `geom_violin()` & `geom_boxplot()`.
+
+Tipp: `month.name` ist ein Vektor der Monatsnamen
+
+```{r, echo=FALSE}
+weather %>% 
+  filter(origin=="JFK") %>%
+  mutate(month = month.name[month],
+         month = as_factor(month)) %>%
+  ggplot(aes(x=month, y=temp)) +
+    geom_violin(fill="red") +
+    geom_boxplot(width=0.25)
+```
+
+## Lösung
+
+```{r, eval=FALSE}
+weather %>% 
+  filter(origin=="JFK") %>%
+  mutate(month = month.name[month],
+         month = as_factor(month)) %>%
+  ggplot(aes(x=month, y=temp)) +
+    geom_violin(fill="red") +
+    geom_boxplot(width=0.25)
+```
+
+# Skalen
+
+## Skalentypen
+
+Jedes Mapping in den **aesthetics** hat eine eigene Skala
+
+Beispiele:
+
+Skala | betrifft
+----   | -------------------------------------
+`scale_x_discrete()` | Diskrete (factor) x-Werte
+`scale_y_contiuous()` | Kontinuierliche y-Werte
+`scale_fill_...()` | Farbe der Füllung
+`scale_linetype()` | Linientyp
+
+
+## Skalenname = Achsenname
+
+```{r}
+weather %>%
+  group_by(month) %>%
+  summarize(mean_temp = mean(temp, na.rm = T))  %>%
+  ggplot(aes(x=month, y=mean_temp)) +
+    geom_bar(stat="identity") +
+    ### <b>
+    scale_y_continuous(name = "mean temperature [°C]")
+    ### </b>
+```
+
+## Wähle Skalenbereich mit `limits`
+
+```{r}
+weather %>%
+  group_by(month) %>%
+  summarize(mean_temp = mean(temp, na.rm = T))  %>%
+  ggplot(aes(x=month, y=mean_temp)) +
+    geom_bar(stat="identity") +
+    ### <b>
+    scale_x_continuous(limits = c(0, 13))
+    ### </b>
+```
+
+
+## Wähle Graduierungsschritte mit `breaks` 
+
+```{r}
+weather %>%
+  group_by(month) %>%
+  summarize(mean_temp = mean(temp, na.rm = T))  %>%
+  ggplot(aes(x=month, y=mean_temp)) +
+    geom_bar(stat="identity") +
+    ### <b>
+    scale_x_continuous(breaks = 1:12)
+    ### </b>
+```
+
+## Benenne Graduierungsschritte mit `labels` 
+
+```{r}
+weather %>%
+  group_by(month) %>%
+  summarize(mean_temp = mean(temp, na.rm = T))  %>%
+  ggplot(aes(x=month, y=mean_temp)) +
+    geom_bar(stat="identity") +
+    ### <b>
+    scale_x_continuous(breaks = 1:12, labels = month.name)
+    ### </b>
+```
+
+## Wähle andere Werte mit `values` (Farben, Formen, ...) {.smaller}
+
+```{r}
+weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin, color=origin)) +
+    geom_line() +
+  ### <b>
+    scale_color_manual(values = c("red", "blue", "green"))
+  ### </b>
+```
+
+für Farbenüberblick siehe [hier](http://sape.inf.usi.ch/quick-reference/ggplot2/colour).
+
+## Nicht gut in Farbauswahl? Nutze Paletten! {.smaller}
+
+```{r}
+weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin, color=origin)) +
+    geom_line() +
+  ### <b>
+    scale_color_brewer(palette = "Dark2")
+  ### </b>
+```
+
+Mehr dazu [hier](https://ggplot2.tidyverse.org/reference/scale_brewer.html)
+
+## Auch Skalentransformation ist möglich {.columns-2}
+
+```{r, fig.width=3, fig.height=3, warning=FALSE, message=FALSE}
+flights  %>% 
+  ggplot(aes(x=dep_delay)) + 
+  geom_histogram()
+```
+
+<p class="forceBreak"></p>
+
+```{r, fig.width=3, fig.height=3, warning=FALSE, message=FALSE}
+flights  %>% 
+  ggplot(aes(x=dep_delay)) + 
+  geom_histogram() +
+  ### <b>
+  scale_x_log10()
+  ### </b>
+```
+
+
+## und Achsentausch {.columns-2 .smaller}
+
+```{r, fig.width=3, fig.height=3, warning=FALSE, message=FALSE}
+weather %>%
+  ggplot(aes(x=origin, y=humid)) +
+    geom_boxplot()
+```
+
+<p class="forceBreak"></p>
+
+```{r, fig.width=3, fig.height=3, warning=FALSE, message=FALSE}
+weather %>%
+  ggplot(aes(x=origin, y=humid)) +
+    geom_boxplot() +
+  ### <b>
+    coord_flip()
+  ### </b>
+```
+
+## Übung
+
+Erstelle folgende Grafik mit `weather`:
+
+```{r, warning=FALSE, echo=FALSE}
+weather %>%
+  mutate(Hour = as_factor(hour)) %>%
+  ggplot(aes(x=Hour, y=temp, fill=hour)) +
+    geom_boxplot() +
+    scale_fill_gradient2(low = "blue", mid= "yellow", high = "blue", midpoint = 12) +
+    scale_y_continuous(name = "Temperatur [°F]") +
+    scale_x_discrete(name="Tageszeit")
+```
+
+Tipp: `scale_fill_gradient2()`
+
+## Lösung:
+
+```{r, warning=FALSE}
+weather %>%
+  mutate(Hour=as_factor(hour)) %>%
+  ggplot(aes(x=Hour, y=temp, fill=hour)) +
+    geom_boxplot() +
+    scale_fill_gradient2(low="blue", mid="yellow", high="blue", midpoint=12) +
+    scale_y_continuous(name="Temperatur [°F]") +
+    scale_x_discrete(name="Tageszeit")
+```
+
+
+# Facetten
+
+##  Facetten
+
+Facetten teilen die Daten basierend auf Faktoren und erzeugen für jede Faktorausprägung die selbe Grafik.
+
+Wir bereiten Daten vor:
+
+```{r, warning=FALSE}
+weather_fac <- weather %>%
+  mutate(
+    time = if_else(hour < 5 | hour > 18, "night", "day"),
+    month = factor(month, labels=month.name)
+  )
+```
+
+## Base Plot
+
+```{r,  warning=FALSE}
+weather_fac %>%
+  ggplot(aes(x=temp, y=month)) +
+    ggridges::geom_density_ridges()
+```
+
+## Horizontale Facetten
+
+```{r,  warning=FALSE, message=FALSE}
+weather_fac %>%
+  ggplot(aes(x=temp, y=month)) +
+    ggridges::geom_density_ridges() +
+  ###<b>
+    facet_grid(.~origin)
+  ###</b>
+```
+
+## Vertikale Facetten
+
+
+```{r,  warning=FALSE, message=FALSE, fig.height=4}
+weather_fac %>%
+  ggplot(aes(x=temp, y=month)) +
+    ggridges::geom_density_ridges() +
+  ###<b>
+    facet_grid(time~.)
+  ###</b>
+```
+
+
+## Horizontale und vertikale Facetten
+
+
+```{r,  warning=FALSE, message=FALSE, fig.height=4}
+weather_fac %>%
+  ggplot(aes(x=temp, y=month)) +
+    ggridges::geom_density_ridges() +
+  ###<b>
+    facet_grid(time~origin)
+  ###</b>
+```
+
+## facet_wrap() nutzt h&v für einen Faktor {.smaller}
+
+```{r,  warning=FALSE, message=FALSE, fig.height=4.2}
+weather_fac %>%
+  mutate(hour4 = cut_number(hour, 6) %>% as_factor()) %>%
+  ggplot(aes(x=temp, y=hour4)) +
+    ggridges::geom_density_ridges() +
+  ###<b>
+    facet_wrap(.~month)
+  ###</b>
+```
+
+## Übung
+
+Erstelle folgende Grafik mit `weather`:
+
+```{r, echo=FALSE, warning=FALSE}
+weather %>%
+  mutate(quartal = cut_number(month, 4),
+         quartal = factor(quartal, labels=paste0("Q",1:4)),
+         time = if_else(hour < 5 | hour > 18, "night", "day")
+         ) %>%
+  ggplot(aes(x=origin, y=temp)) +
+    geom_violin() +
+    facet_grid(time ~ quartal)
+```
+
+## Lösung:
+
+```{r, warning=FALSE}
+weather %>%
+  mutate(quartal = cut_number(month, 4),
+         quartal = factor(quartal, labels=paste0("Q",1:4)),
+         time = if_else(hour < 5 | hour > 18, "night", "day")
+         ) %>%
+  ggplot(aes(x=origin, y=temp)) +
+    geom_violin() +
+    facet_grid(time ~ quartal)
+```
+
+
+# Themes
+
+## Themes
+
+Themes werden für allgemeine Veränderungen des Grafikaussehens verwendet
+
+zB:
+
++ Schrift: Fonts, Größe, Farbe, ...
+
++ Legende: Position, Ausrichtung, ...
+
++ Elemente: Rand, Hintergrund, ...
+
++ Achsen: Farbe, Stärke, ...
+
++ ...
+
+## Vorgefertigte Themes sind verfügbar
+
+`theme_classic()` entspricht APA Anforderungen sehr gut
+
+```{r}
+weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin)) +
+    geom_line() +
+  ###<b>
+    theme_classic()
+  ###</b>
+```
+
+## Position der Legende {.smaller}
+
+```{r}
+weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin)) +
+    geom_line() +
+    theme_classic() +
+    theme(
+      ###<b>
+      legend.position = c(0.2, 0.8)
+      ###</b>
+  )
+
+```
+
+## Legendentitel entfernen {.smaller}
+
+```{r}
+weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin)) +
+    geom_line() +
+    theme_classic() +
+  theme(
+    legend.position = c(0.2, 0.9),
+    ###<b>
+    legend.title = element_blank()
+    ###</b>
+  )
+
+```
+
+## Bonus: Offene Skalen (package: lemon) {.smaller}
+
+
+```{r}
+weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin)) +
+    geom_line() +
+      ###<b>
+    lemon::coord_capped_cart(left='both') +
+      ###</b>
+    theme_classic() +
+    theme(
+      legend.position = c(0.2, 0.8)
+  )
+```
+
+
+
+# Speichern
+
+## ggsave() {.build}
+
+`ggsave()` erlaubt das Speichern in unterschiedlichen Formaten
+
+Wähle beim Attribut `filename` einfach entsprechende Datei-Endung
+
+Empfehlung: **pdf** als Vektorgrafik (verlustfrei)
+
+Für nicht Vektorgrafiken (jpg, png, tif, ...) kann über `dpi` Auflösung gewählt werden.
+
+`width` und `height` regulieren die Größe
+
+## per Default wird letzte Grafik gespeichert
+
+```{r}
+weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin)) +
+    geom_line()
+
+###<b>
+ggsave("plots/w2810.pdf", width=18, height=8, units = "cm")
+###</b>
+```
+
+## zu speichernde Grafik kann auch gewählt werden
+
+```{r}
+w2810 <- weather %>%
+  filter(month==10, day==28) %>%
+  ggplot(aes(x=time_hour, y=temp, linetype=origin)) +
+    geom_line()
+
+###<b>
+ggsave("plots/w2810.jpg", w2810, width=8, height=5, dpi = 300)
+###</b>
+```
+
+
+## Ressourcen {.build}
+
+ggplot2 Anleitungen: [R Graphics Cookbook](http://www.cookbook-r.com/Graphs/)
+
+</br>
+
+Grafiken allgemein: [Fundamentals of Data Visualization](https://serialmentor.com/dataviz/) </br>
+(Grafiken mit ggplot2; Code auf github verfügbar)
+
+</br>
+
+Interaktive Grafiken: [plotly](https://plot.ly/r/)

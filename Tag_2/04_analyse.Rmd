@@ -1,0 +1,466 @@
+---
+title: "Datenanalyse mit R"
+author: "Bernhard Piskernik"
+date: "28 März 2019"
+output: 
+      ioslides_presentation:
+        css: ./style.css
+        incremental: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.width=8, fig.height=3)
+
+library(tidyverse)
+library(nycflights13)
+```
+
+
+## Datenanalyse mit R {.build}
+
+Die Möglichkeiten der Datenanalyse mit R sind Dank einer Vielzahl an Paketen Legion
+
+Je nach Methode ist der benötigte Input unterschiedlich - _tidyverse hilft_
+
+Auch Output variiert - nicht immer wird alles ausgegeben (checke `values` mit `help()`)
+
+Methoden sind nur Tools - Auswahl und Ergebnisinterpretation entscheidet AnwenderIn
+
+Deskriptive Statisiken am besten mittels `dplyr::summarize()` (siehe Tag 1)
+
+## Werbung in eigener Sache
+
+Android-App: [Statistik-Hilfe](https://play.google.com/store/apps/details?id=b.piskernik.statisticshelper&hl=de)
+
+Entscheidungsbaum
+
+Anleitungen für SPSS und R
+
+Alternativen und ähnliche Verfahren
+
+# Kenne deine Daten bevor du sie analysierst
+
+## DataExplorer 
+
+Vor jeder Analyse sollten Daten genau inspiziert werden. 
+
+Das Paket `DataExplorer` hilft.
+
+```{r}
+DataExplorer::introduce(weather) %>%
+  t() ## t() transponiert = kippt Tabelle
+```
+
+## DataExplorer::introduce - grafisch
+
+```{r}
+DataExplorer::plot_intro(weather)
+```
+
+## Missings Überblick 
+
+```{r, fig.height=5}
+DataExplorer::plot_missing(weather)
+```
+
+## Kategoriale Daten
+
+```{r, fig.height=5, warning=FALSE, message=FALSE}
+DataExplorer::plot_bar(weather)
+```
+
+
+## Kontinuierliche Daten
+
+```{r, fig.height=5, warning=FALSE}
+DataExplorer::plot_histogram(weather)
+```
+
+## Normalverteilt? Checke QQ-Plots!
+
+```{r,  warning=FALSE}
+weather %>% 
+  select(origin, wind_gust, pressure) %>% 
+  DataExplorer::plot_qq(by = "origin", sampled_rows = 1000L)
+```
+
+## Korrelationen
+
+```{r, fig.height=5, warning=FALSE, message=FALSE}
+DataExplorer::plot_correlation(na.omit(weather))
+```
+
+## Korrekturen {.build}
+<div>
+<center>
+Korrekturen/Änderungen notwendig?
+</center>
+
+</br>
+</div>
+<div>
+<center>
+Nutze `tidyverse` (siehe Tag 1)!
+</center>
+</br>
+</div>
+<div>
+ZB:
+
+```{r, warning=FALSE}
+weather_cor <- weather %>%
+  mutate(
+    wind_speed = if_else(wind_speed > 60, NA_real_, wind_speed)
+  )
+```
+
+</div>
+
+
+# Formula
+
+## Formula {.build}
+
+R Pakete unterscheiden sich stark voneinander
+
+**ABER**: Viele Pakete nutzen _einheitlichen Aufbau_ um den zu modellierenden _Zusammenhang zwischen AV und UVs_ zu beschreiben.
+
+<div>
+Allgemeine Form: 
+
+<center>
+<code>
+<b>
+<span class="must">AV</span> ~ <span class="can">UV-Struktur</span>
+</b>
+</code>
+</center>
+
+</br>
+</div>
+<div>
+Kann für Wiedverwendung und Veränderung gespeichert werden
+
+```{r}
+h <- formula("y ~ x1 + x2")
+```
+</div>
+
+## Formeloperatoren
+
+Operator | Funktion
+--- | ---
+~ | Trennung zw. AV und UV
++ | fügt weiteren Ausdruck hinzu
+- | entfernt Ausdruck (aus gespeicherte Formeln)
+* | fügt Ausdrücke links und rechts hinzu & deren Wechselwirkungen
+: | fügt nur Wechselwirkung hinzu
+. | fügt alle Variablen hinzu
+
+# Lineare Modelle
+
+## lm()
+
+Die Basis-Funktion zur Analyse _linearer Modelle_ ist `lm()`
+
+Eine einfache Regression:
+
+```{r}
+lm(wind_speed ~ pressure, data=weather_cor)
+```
+
+## Regression mit Wechselwirkungen
+
+```{r}
+with(
+  ## Daten
+  weather_cor %>%
+    mutate_if(is.numeric, scale),
+  ## Ausdruck
+  lm(wind_speed ~ pressure*humid)
+)
+```
+
+## Noch mehr Wechselwirkungen {.smaller}
+
+```{r}
+with(
+  weather_cor %>%
+    mutate_if(is.numeric, scale),
+  lm(wind_speed ~ pressure*origin)
+)
+```
+
+Beachte: Kategoriale Variablen müssen `chr` oder `factor` sein!
+
+## Übung {.build .smaller}
+
+Modell das `wind_speed` durch `pressure`, `humid` und `origin` sowie deren 2-fach Wechselwirkungen beschreibt
+
+**Lösung:**
+
+```{r, echo=FALSE}
+modell_ü1 <- with(
+  weather_cor %>%
+    mutate_if(is.numeric, scale),
+  lm(wind_speed ~ pressure*humid + pressure*origin + humid*origin)
+)
+```
+
+```{r, echo=FALSE}
+(
+  modell_ü1 <- with(
+    weather_cor %>%
+      mutate_if(is.numeric, scale),
+    lm(wind_speed ~ pressure*humid + pressure*origin + humid*origin)
+  )
+)
+```
+
+
+
+## `summary()` für umfangreichere Ergebnisdarstellung {.smaller}
+
+
+```{r}
+modell1 <- lm(wind_speed ~ pressure*origin, data = weather_cor)
+
+modell1 %>% summary()
+```
+
+## plot() {.build}
+
+Die meisten Analyseprozeduren in R haben eine eigene Plot-Funktion, welche die Ergebnisse methodenabhängig visualisiert.
+
+Aufruf erfolgt spezifisch mittels
+
+<center>`plot.methodenname(Modell)`</center>
+
+<div>
+</br>
+oder generisch mittels
+
+<center>`plot(Modell)`</center>
+
+</br>
+</div>
+`plot.lm()` hilft die Voraussetzungen zu überprüfen
+
+## Linearität
+
+```{r, fig.height=5}
+plot(modell1, which=1)
+```
+
+## Normalverteilung
+
+```{r, fig.height=5}
+plot(modell1, which=2)
+```
+
+## Homoskedastizität
+
+```{r, fig.height=5}
+plot(modell1, which=3)
+```
+
+## Frage {.build}
+<div>
+</br>
+<center>Welche Voraussetzung fehlt noch?</center>
+
+</br>
+</br>
+</br>
+</div>
+<center>Gibt es für Unabhängigkeit der Residuen auch einen Plot?</center>
+
+
+## Ergebnis als AN(C)OVA
+
+```{r}
+modell1 %>% 
+  ### <b>
+  anova()
+  ### </b>
+```
+
+
+## Noch mehr ANOVA-stats mit `sjstats`
+
+```{r, warning=FALSE}
+modell1 %>% 
+  ### <b>
+  sjstats::anova_stats()
+  ### </b>
+```
+
+## Mit `anova()` können auch genestete Modelle verglichen werden
+
+```{r}
+modell2 <- lm(wind_speed ~ pressure+origin, data = weather_cor)
+
+anova(modell1, modell2)
+```
+
+--> Das "größere" Modell erklärt signifikant mehr Varianz (n ist riesig!)
+
+## Übung
+
+Evaluieren Sie `modell2`
+
+## Lösung (1/3) - Summaries 1 {.build .smaller}
+
+```{r}
+summary(modell2)
+```
+
+## Lösung (2/3) - Summaries 2 {.build .smaller}
+
+```{r}
+sjstats::anova_stats(modell2)
+```
+
+## Lösung (3/3) - Plots {.build .smaller}
+
+```{r, fig.height=5}
+par(mfrow=c(1,3))
+for(i in 1:3) plot(modell2,i)
+```
+
+## Bonus: grafische Darstellung
+
+```{r, warning=FALSE}
+weather_cor  %>%
+  filter(!is.na(pressure), !is.na(wind_speed)) %>%
+  ggplot(aes(x=pressure, y=modell2$fitted.values)) +
+    geom_hex(aes(y=wind_speed)) +
+    geom_line(color="red") +
+    facet_wrap(.~origin) +
+    theme_minimal()
+```
+
+
+
+## Residuen und vorhergesagte Werte
+
+Die Residuen werden im lm-Objekt unter `residuals` und die prädizierten Werte unter `fitted.values` gespeichert.
+
+```{r}
+weather_res <- weather_cor %>%
+  filter(!is.na(pressure), !is.na(wind_speed)) %>%
+  mutate(
+    res_m1 = modell1$residuals,
+    fit_m1 = modell1$fitted.values,
+    res_m2 = modell2$residuals,
+    fit_m2 = modell2$fitted.values,    
+  ) %>%
+  gather(key, value, res_m1:fit_m2) %>%
+  separate(key, c("type","model")) %>%
+  spread(type, value)           
+```
+
+
+## Nützlich zB für eigene grafische Inspektionen
+
+```{r}
+weather_res %>%
+  sample_n(3000) %>%
+  ggplot(aes(x=fit, y=res)) +
+    geom_point(aes(color=origin), alpha=0.5) +
+    geom_hline(yintercept=0) +
+    geom_smooth(method = "lm", color="red") +
+    facet_grid(origin~model) 
+  
+```
+
+## Was kommt nach `lm()`? {.build}
+<div>
+<center><b>Nutze `lme4::lmer()` für Mehrebenenmodelle</b></center>
+
+</br>
+Die *formula* kann hier mit **random effects** ergänzt werden in der Form:
+<center>
+<code>
+<b>
+<span class="must">AV</span> ~ <span class="can">fix eff</span> + (<span class="can">rand eff</span>|<span class="might">nesting factor</span>)
+</b>
+</code>
+</center>
+
+</br>
+</div>
+
+<div>
+<center><b>Nutze `glm()` für generalisierte lineare Modelle</b></center>
+
+</br>
+Über das zusätzliche *Attribut* <b><code><span class="must">family</span></code></b> wird die Link-Funktion ausgewählt.
+
+zB.: `binomial` für logistische  oder `poisson` für Poisson-Regressionen
+</div>
+
+# Ein kleiner Blick in die Möglichkeiten Rs
+
+## Abschlussübung {.build .smaller}
+
+Bis jetzt nur Analysen, welche auch mit *SPSS* möglich sind.
+
+**Aber**: Voraussetzungen für ALM sind häufig verletzt - da gibt es doch sicher etwas in R
+
+Methoden in [Introduction to Robust Estimating and Hypothesis Testing](https://www.sciencedirect.com/book/9780123869838/introduction-to-robust-estimation-and-hypothesis-testing)  von Rand Wilcox im package `WRS2`
+
+(1) Finde und nutze die adäquate Funktion um auf robuste Art für den Datensatz `DAAG::cps3` zu überprüfen, ob sich die Personen *mit Einkommen* aufgrund *Familienstand* und *Schulabschluss* in der Höhe des *Einkommens 1978* unterscheiden. 
+
+(2) Unterscheidet sich Lösung von Ergebnis basierend auf ALM?
+
+## Lösung (1/2)
+
+```{r}
+DAAG::cps3 %>%
+  filter(re78 > 0) %>%
+  mutate_at(vars(marr, nodeg), factor) %>%
+  WRS2::t2way(re78 ~ marr * nodeg, data = .)
+```
+
+Alternativ wäre auch two-way ANOVA mit Median und Bootstrap in der Funktion `WRS2::pbad2way()` möglich
+
+## Lösung (2/2)
+
+```{r}
+DAAG::cps3 %>%
+  filter(re78 > 0) %>%
+  mutate_at(vars(marr, nodeg), factor) %>%
+  lm(re78 ~ marr * nodeg, data = .) %>% 
+  anova()
+```
+
+## Hausübung {.build}
+
+Finden Sie Daten (eigene oder [hier](https://vincentarelbundock.github.io/Rdatasets/datasets.html) für Überblick frei verfügbarer)
+
+Überlegen Sie sich eine Fragestellung basierend auf der Datenbeschreibung
+
+Versuchen Sie die Frage zu beantworten
+
+Präsentieren Sie die Lösung auch deskriptiv und graphisch
+
+Dokumentieren Sie gesamten Prozess als RMarkdown
+
+Schicken Sie das Ergebnis an b.piskernik@gmail.com
+
+## Ressourcen {.build}
+
+[StatsExchange](https://stats.stackexchange.com/)
+
+[R-bloggers](https://www.r-bloggers.com)
+
+[RStudio Packages](https://www.rstudio.com/products/rpackages/)
+
+[mein Blog](www.bernhardlearns.com)
+
+# Danke für Ihre Aufmerksamkeit!
+
+
+
